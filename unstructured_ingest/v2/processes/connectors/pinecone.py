@@ -66,6 +66,7 @@ class PineconeUploadStagerConfig(UploadStagerConfig):
 
 class PineconeUploaderConfig(UploaderConfig):
     batch_size: int = Field(default=100, description="Number of records per batch")
+    namespace: Optional[int] = Field(default=None, description="The namespace where the vectors will be upserted in the index")
 
 
 ALLOWED_FIELDS = (
@@ -154,7 +155,11 @@ class PineconeUploader(Uploader):
 
         try:
             index = self.connection_config.get_index()
-            response = index.upsert(batch)
+            namespace = self.upload_config.namespace
+            if namespace is None:
+                response = index.upsert(batch)
+            else:
+                response = index.upsert(batch, namespace=namespace)
         except PineconeApiException as api_error:
             raise DestinationConnectionError(f"http error: {api_error}") from api_error
         logger.debug(f"results: {response}")
@@ -166,6 +171,7 @@ class PineconeUploader(Uploader):
             f"writing document batches to destination"
             f" index named {self.connection_config.index_name}"
             f" with batch size {self.upload_config.batch_size}"
+            f" in namespace {self.upload_config.namespace}"
         )
 
         for batch in generator_batching_wbytes(
